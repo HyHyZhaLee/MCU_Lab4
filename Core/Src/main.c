@@ -18,7 +18,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
+#include <stdio.h>
+#include <string.h>
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -61,7 +62,23 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+#define MAX_BUFFER_SIZE 30
+uint8_t temp = 0;
+uint8_t buffer[MAX_BUFFER_SIZE];
+uint8_t index_buffer = 0;
+uint8_t buffer_flag = 0;
 
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    if (huart->Instance == USART2) {
+        HAL_UART_Transmit(&huart2, &temp, 1, 50);
+        buffer[index_buffer++] = temp;
+        if (index_buffer == MAX_BUFFER_SIZE) {
+            index_buffer = 0;
+        }
+        buffer_flag = 1;
+        HAL_UART_Receive_IT(&huart2, &temp, 1);
+    }
+}
 /* USER CODE END 0 */
 
 /**
@@ -101,12 +118,29 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  HAL_UART_Receive_IT(&huart2 , &temp , 1);
+  uint32_t ADC_value = 0;
+  char str[32];  // Define a character array to hold the ADC value string
+
   while (1)
   {
-    /* USER CODE END WHILE */
+      /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
+//      HAL_GPIO_TogglePin(LED_RED_GPIO_Port, LED_RED_Pin); // Toggle the LED
+
+      // Ensure ADC is properly started and polled for conversion
+      HAL_ADC_Start(&hadc1);
+      HAL_ADC_PollForConversion(&hadc1, 1000);
+      // Get the ADC value
+      ADC_value = HAL_ADC_GetValue(&hadc1);
+      // Convert the ADC value to a string and send it over UART
+      sprintf(str, "%lu\n", ADC_value);
+      HAL_UART_Transmit(&huart2, (uint8_t*)str, strlen(str), 1000);
+      HAL_Delay(500); // Delay for 500 ms
+      /* USER CODE END WHILE */
+      /* USER CODE BEGIN 3 */
   }
+
   /* USER CODE END 3 */
 }
 
