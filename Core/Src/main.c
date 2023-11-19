@@ -106,7 +106,7 @@ void command_parser_fsm(){
 				command_parser_state = PARSER_BEGIN;
 				//TODO clear command_data[MAX_BUFFER_SIZE]
 				index_parser = 0;
-                HAL_UART_Transmit(&huart2, command_data, sizeof(command_data), 1000);
+//                HAL_UART_Transmit(&huart2, command_data, sizeof(command_data), 1000);
 			}
 			else {
 				command_data[index_parser++] = buffer[index_reading];
@@ -129,32 +129,39 @@ void ADC_read(){
     // Get the ADC value
     ADC_value = HAL_ADC_GetValue(&hadc1);
     // Convert the ADC value to a string and send it over UART
-    sprintf(previous_packet, "!%lu#\r\n", ADC_value); // Use %lu for uint32_t
+    sprintf(previous_packet, "!%lu#\r\n", ADC_value);
 }
 
 void uart_communication_fsm(){
     switch (uart_communication_state) {
+    	//Waiting for RST STATE
         case RST_STATE:
+        	//Check command_flag
             if(command_flag){
                 command_flag = 0;
+                //TODO command_flag for RST_STATE
                 if(!strcmp((char*)command_data, "RST")){
                     uart_communication_state = OK_STATE;
                     ADC_read();
                     HAL_UART_Transmit(&huart2, (uint8_t*)previous_packet, strlen(previous_packet), 1000);
                     setTimer(3000, 0);
                 }
-                // Consider if this transmission is necessary
-
+                //Reset the command_data after read
                 memset(command_data, '\0', MAX_BUFFER_SIZE);
             }
             break;
+		//Waiting for OK STATE
         case OK_STATE:
+        	//Check timer_flag
             if(timer_flag[0]){
                 setTimer(3000, 0);
+                //TODO timer_flag of OK STATE
                 HAL_UART_Transmit(&huart2, (uint8_t*)previous_packet, strlen(previous_packet), 1000);
             }
+        	//Check command_flag
             if(command_flag){
                 command_flag = 0;
+                //TODO command_flag for OK_STATE
                 if(!strcmp((char*)command_data, "OK")){
                     uart_communication_state = RST_STATE;
                 }
@@ -164,7 +171,6 @@ void uart_communication_fsm(){
             break;
     }
 }
-
 /* USER CODE END 0 */
 
 /**
