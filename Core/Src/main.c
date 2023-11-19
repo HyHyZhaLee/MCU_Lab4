@@ -70,7 +70,7 @@ uint8_t buffer_flag = 0;
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == USART2) {
-        HAL_UART_Transmit(&huart2, &temp, 1, 50);
+//        HAL_UART_Transmit(&huart2, &temp, 1, 50);
         buffer[index_buffer++] = temp;
         if (index_buffer == MAX_BUFFER_SIZE) {
             index_buffer = 0;
@@ -79,6 +79,92 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
         HAL_UART_Receive_IT(&huart2, &temp, 1);
     }
 }
+
+#define PARSER_BEGIN 0
+#define PARSER_PARSING 1
+uint8_t command_parser_state = PARSER_BEGIN;
+uint8_t command_data[MAX_BUFFER_SIZE];
+uint8_t index_parser = 0;
+uint8_t command_flag = 0;
+void command_parser_fsm(){
+	uint8_t index_reading = index_buffer - 1;
+	if(index_reading < 0) index_reading = MAX_BUFFER_SIZE - 1;
+
+	switch (command_parser_state) {
+	//CASE wait for '!'
+		case PARSER_BEGIN:
+			if(buffer[index_reading] == '!'){
+				command_parser_state = PARSER_PARSING;
+			}
+			break;
+    //Case parsing the command
+		case PARSER_PARSING:
+			if(buffer[index_reading] == '#'){
+				command_parser_state = PARSER_BEGIN;
+				command_flag = 1;
+				index_parser = 0;
+				command_parser_state = PARSER_BEGIN;
+				//TODO clear command_data[MAX_BUFFER_SIZE]
+				index_parser = 0;
+                HAL_UART_Transmit(&huart2, command_data, sizeof(command_data), 1000);
+			}
+			else {
+				command_data[index_parser++] = buffer[index_reading];
+				//TODO Handle buffer overflow case
+			}
+	}
+}
+
+#define RST_STATE 0
+#define OK_STATE 1
+#include "software_timer.h"
+uint32_t ADC_value = 0;
+uint8_t uart_communication_state = RST_STATE;
+char previous_packet[MAX_BUFFER_SIZE];
+
+void ADC_read(){
+    // Ensure ADC is properly started and polled for conversion
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1, 1000);
+    // Get the ADC value
+    ADC_value = HAL_ADC_GetValue(&hadc1);
+    // Convert the ADC value to a string and send it over UART
+    sprintf(previous_packet, "!%lu#\r\n", ADC_value); // Use %lu for uint32_t
+}
+
+void uart_communication_fsm(){
+    switch (uart_communication_state) {
+        case RST_STATE:
+            if(command_flag){
+                command_flag = 0;
+                if(!strcmp((char*)command_data, "RST")){
+                    uart_communication_state = OK_STATE;
+                    ADC_read();
+                    HAL_UART_Transmit(&huart2, (uint8_t*)previous_packet, strlen(previous_packet), 1000);
+                    setTimer(3000, 0);
+                }
+                // Consider if this transmission is necessary
+
+                memset(command_data, '\0', MAX_BUFFER_SIZE);
+            }
+            break;
+        case OK_STATE:
+            if(timer_flag[0]){
+                setTimer(3000, 0);
+                HAL_UART_Transmit(&huart2, (uint8_t*)previous_packet, strlen(previous_packet), 1000);
+            }
+            if(command_flag){
+                command_flag = 0;
+                if(!strcmp((char*)command_data, "OK")){
+                    uart_communication_state = RST_STATE;
+                }
+                // Consider if this transmission is necessary
+                memset(command_data, '\0', MAX_BUFFER_SIZE);
+            }
+            break;
+    }
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -113,32 +199,20 @@ int main(void)
   MX_ADC1_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_TIM_Base_Start_IT(&htim2 );
+  HAL_UART_Receive_IT(&huart2 , &temp , 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  HAL_UART_Receive_IT(&huart2 , &temp , 1);
-  uint32_t ADC_value = 0;
-  char str[32];  // Define a character array to hold the ADC value string
-
   while (1)
   {
+	  if(buffer_flag){
+		  command_parser_fsm();
+		  buffer_flag = 0;
+	  }
+	  uart_communication_fsm();
       /* USER CODE END WHILE */
-
-//      HAL_GPIO_TogglePin(LED_RED_GPIO_Port, LED_RED_Pin); // Toggle the LED
-
-      // Ensure ADC is properly started and polled for conversion
-      HAL_ADC_Start(&hadc1);
-      HAL_ADC_PollForConversion(&hadc1, 1000);
-      // Get the ADC value
-      ADC_value = HAL_ADC_GetValue(&hadc1);
-      // Convert the ADC value to a string and send it over UART
-      sprintf(str, "%lu\n", ADC_value);
-      HAL_UART_Transmit(&huart2, (uint8_t*)str, strlen(str), 1000);
-      HAL_Delay(500); // Delay for 500 ms
-      /* USER CODE END WHILE */
-      /* USER CODE BEGIN 3 */
   }
 
   /* USER CODE END 3 */
