@@ -62,6 +62,11 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+
+
+
+//ISR for UART
 #define MAX_BUFFER_SIZE 30
 uint8_t temp = 0;
 uint8_t buffer[MAX_BUFFER_SIZE];
@@ -80,6 +85,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     }
 }
 
+
+
+//FSM for command parser
 #define PARSER_BEGIN 0
 #define PARSER_PARSING 1
 uint8_t command_parser_state = PARSER_BEGIN;
@@ -107,6 +115,7 @@ void command_parser_fsm(){
 				//TODO clear command_data[MAX_BUFFER_SIZE]
 				index_parser = 0;
 //                HAL_UART_Transmit(&huart2, command_data, sizeof(command_data), 1000);
+				HAL_GPIO_TogglePin(LED_RED_GPIO_Port, LED_RED_Pin);
 			}
 			else {
 				command_data[index_parser++] = buffer[index_reading];
@@ -115,6 +124,9 @@ void command_parser_fsm(){
 	}
 }
 
+
+
+//FSM for uart communication
 #define RST_STATE 0
 #define OK_STATE 1
 #include "software_timer.h"
