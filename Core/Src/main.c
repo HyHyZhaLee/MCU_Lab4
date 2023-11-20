@@ -65,7 +65,6 @@ static void MX_USART2_UART_Init(void);
 
 
 
-
 //ISR for UART
 #define MAX_BUFFER_SIZE 30
 uint8_t temp = 0;
@@ -94,6 +93,7 @@ uint8_t command_parser_state = PARSER_BEGIN;
 uint8_t command_data[MAX_BUFFER_SIZE];
 uint8_t index_parser = 0;
 uint8_t command_flag = 0;
+
 void command_parser_fsm(){
 	uint8_t index_reading = index_buffer - 1;
 	if(index_reading < 0) index_reading = MAX_BUFFER_SIZE - 1;
@@ -107,6 +107,11 @@ void command_parser_fsm(){
 			break;
     //Case parsing the command
 		case PARSER_PARSING:
+			if(buffer[index_reading] == '!'){
+                memset(command_data, '\0', MAX_BUFFER_SIZE);
+                index_parser = 0;
+				return;
+			}
 			if(buffer[index_reading] == '#'){
 				command_parser_state = PARSER_BEGIN;
 				command_flag = 1;
@@ -114,7 +119,7 @@ void command_parser_fsm(){
 				command_parser_state = PARSER_BEGIN;
 				//TODO clear command_data[MAX_BUFFER_SIZE]
 				index_parser = 0;
-//                HAL_UART_Transmit(&huart2, command_data, sizeof(command_data), 1000);
+                HAL_UART_Transmit(&huart2, command_data, sizeof(command_data), 1000);
 				HAL_GPIO_TogglePin(LED_RED_GPIO_Port, LED_RED_Pin);
 			}
 			else {
